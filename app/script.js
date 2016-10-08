@@ -24,6 +24,33 @@ function rand_between (min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Return random hex code color
+function rand_color () {
+    return '#' + Math.random().toString(16).substr(-6);
+}
+
+// Return darker hex color from a hex color
+// (Positive percent for lighter, negative for darker)
+function shade_color(color, percent) {
+    var f = parseInt(color.slice(1), 16),
+        t = percent < 0 ? 0 : 255,
+        p = percent < 0 ? percent * -1 : percent,
+        R = f >> 16,
+        G = f >> 8 & 0x00FF,
+        B = f & 0x0000FF;
+        console.log(f, t, p, R, G, B);
+    let darker = (
+        "#" +
+        (0x1000000 +
+            (Math.round((t - R) * p) + R) * 0x10000 +
+            (Math.round((t - G) * p) + G) * 0x100 +
+            (Math.round((t - B) * p) + B)
+        ).toString(16).slice(1)
+    );
+    console.log(color, darker);
+    return darker;
+}
+
 
 /*
 Game class that controls everything else
@@ -44,7 +71,8 @@ Game.prototype.spawn_blobs = function () {
         let xloc = rand_between(0, CANVAS.width);
         let yloc = rand_between(0, CANVAS.height);
         let radius = rand_between(10, 50);
-        this.blobs.push(new Blob(xloc, yloc, radius));
+        let color = rand_color();
+        this.blobs.push(new Blob(xloc, yloc, color, radius));
     }
 }
 // Draw the blobs on the canvas
@@ -59,9 +87,11 @@ Game.prototype.draw_blobs = function (index) {
 /*
 Blob class that floats around the canvas
 */
-var Blob = function (xloc, yloc, radius=10) {
+var Blob = function (xloc, yloc, color, radius=10) {
     this.xloc = xloc;
     this.yloc = yloc;
+    this.color = color;
+    this.border_color = shade_color(color, -0.4);
     this.radius = radius;
 }
 // Return info about this Blob as a string
@@ -76,10 +106,10 @@ Blob.prototype.draw = function () {
 
     CONTEXT.beginPath();
     CONTEXT.arc(centerX, centerY, this.radius, 0, 2 * Math.PI, false);
-    CONTEXT.fillStyle = 'green';
+    CONTEXT.fillStyle = this.color;
     CONTEXT.fill();
     CONTEXT.lineWidth = 5;
-    CONTEXT.strokeStyle = '#003300';
+    CONTEXT.strokeStyle = this.border_color;
     CONTEXT.stroke();
 }
 
