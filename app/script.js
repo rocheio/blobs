@@ -56,14 +56,29 @@ function shade_color(color, percent) {
 Game class that controls everything else
 */
 var Game = function () {
+    // Attributes
     this.blobs = [];
+    this.render = new TrackedInterval(30, this.render_frame.bind(this));
 }
+// Render an entire frame of the game at its current state
+Game.prototype.render_frame = function () {
+    // CLear the canvas
+    CONTEXT.clearRect(0, 0, CANVAS.width, CANVAS.height);
+
+    // Draw Game stuff
+    this.draw_debug_info();
+    this.blobs.forEach(function(blob){
+        blob.draw();
+    });
+};
 // Write debugging info to the canvas
 Game.prototype.draw_debug_info = function () {
     CONTEXT.font = '12px Mono';
+    CONTEXT.fillStyle = 'black';
     CONTEXT.fillText("Canvas Width: " + CANVAS.width, 5, 15);
     CONTEXT.fillText("Canvas Height: " + CANVAS.height, 5, 30);
-    CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 45);
+    CONTEXT.fillText("Actual FPS: " + this.render.rate, 5, 45);
+    CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 60);
 }
 // Spawn blobs on the canvas
 Game.prototype.spawn_blobs = function () {
@@ -75,24 +90,49 @@ Game.prototype.spawn_blobs = function () {
         this.blobs.push(new Blob(xloc, yloc, color, radius));
     }
 }
-// Draw the blobs on the canvas
-Game.prototype.draw_blobs = function (index) {
-    this.blobs.forEach(function(blob){
-        console.log(blob.toString());
-        blob.draw();
-    })
-}
+
+
+/*
+Interval that tracks actual actions taken (for FPS monitoring)
+*/
+var TrackedInterval = function (target_rate, action) {
+    this.target_rate = target_rate;  // Target Actions Per Second
+    this.action = action;  // Function to execute each interval
+
+    this.rate = 0;  // Calculated at render time
+    this._actions = 0;  // Running number of actions taken
+
+    this.interval = setInterval(function(){
+        this.action();
+        this._actions += 1;
+    }.bind(this), 1000/this.target_rate);
+
+    this.tracker = setInterval(this.update_rate.bind(this), 1000);
+};
+// Calculate the running Actions per Second of the interval
+TrackedInterval.prototype.update_rate = function () {
+    this.rate = this._actions;
+    this._actions = 0;
+};
 
 
 /*
 Blob class that floats around the canvas
 */
 var Blob = function (xloc, yloc, color, radius=10) {
+    // Attributes
     this.xloc = xloc;
     this.yloc = yloc;
     this.color = color;
     this.border_color = shade_color(color, -0.4);
     this.radius = radius;
+
+    // Loops
+    this.move_interval = setInterval(function(){
+        let xmov = rand_between(-10, 10);
+        let ymov = rand_between(-10, 10);
+        this.move(xmov, ymov);
+    }.bind(this), 400);
 }
 // Return info about this Blob as a string
 Blob.prototype.toString = function () {
@@ -112,6 +152,12 @@ Blob.prototype.draw = function () {
     CONTEXT.strokeStyle = this.border_color;
     CONTEXT.stroke();
 }
+// Move the blob (Positive right, negative left)
+Blob.prototype.move = function (xmov, ymov) {
+    this.xloc += xmov;
+    this.yloc += ymov;
+}
+
 
 // Start the game on script load
 window.onload = function () {
@@ -119,6 +165,4 @@ window.onload = function () {
     resize_canvas();
     var game = new Game();
     game.spawn_blobs();
-    game.draw_debug_info();
-    game.draw_blobs();
 }
