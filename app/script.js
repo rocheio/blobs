@@ -72,7 +72,9 @@ var Game = function () {
     // Attributes
     this.blobs = [];
     this.renderer = new TrackedInterval(30, this.render_frame.bind(this));
-    this.player = new Blob(100, 100);
+    this.mover = new TrackedInterval(10, this.move_actors.bind(this));
+    this.player = new Blob(rand_between(0, CANVAS.width),
+                           rand_between(0, CANVAS.height));
 }
 // Render an entire frame of the game at its current state
 Game.prototype.render_frame = function () {
@@ -91,8 +93,9 @@ Game.prototype.draw_debug_info = function () {
     CONTEXT.fillStyle = 'black';
     CONTEXT.fillText("Canvas Width: " + CANVAS.width, 5, 15);
     CONTEXT.fillText("Canvas Height: " + CANVAS.height, 5, 30);
-    CONTEXT.fillText("Actual FPS: " + this.renderer.rate, 5, 45);
-    CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 60);
+    CONTEXT.fillText("Frames Per Second: " + this.renderer.rate, 5, 45);
+    CONTEXT.fillText("Moves Per Second: " + this.mover.rate, 5, 60);
+    CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 75);
 }
 // Spawn blobs on the canvas
 Game.prototype.spawn_blobs = function () {
@@ -103,6 +106,12 @@ Game.prototype.spawn_blobs = function () {
         let radius = rand_between(10, 50);
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
+}
+// Move items on the canvas
+Game.prototype.move_actors = function () {
+    this.blobs.forEach(function(blob){
+        blob.move_toward(this.player.xloc, this.player.yloc);
+    }.bind(this));
 }
 
 
@@ -138,13 +147,9 @@ var Blob = function (xloc, yloc, radius=10, color=null) {
     this.xloc = xloc;
     this.yloc = yloc;
     this.radius = radius;
+    this.speed = (10 - Math.sqrt(radius)) >> 1;  // Canvas pts per movement cycle
     this.color = (color == null ? rand_color() : color);
     this.border_color = shade_color(this.color, -0.4);
-
-    // Loops
-    this.move_interval = setInterval(function(){
-        this.move_toward(GAME.player.xloc, GAME.player.yloc);
-    }.bind(this), 400);
 }
 // Return info about this Blob as a string
 Blob.prototype.toString = function () {
@@ -161,15 +166,11 @@ Blob.prototype.draw = function () {
     CONTEXT.strokeStyle = this.border_color;
     CONTEXT.stroke();
 }
-// Move the blob (Positive right, negative left)
-Blob.prototype.move = function (xmov, ymov) {
-    this.xloc += xmov;
-    this.yloc += ymov;
-}
 // Move that blob toward a target
 Blob.prototype.move_toward = function (xtarget, ytarget) {
-    let step = step_toward(this.xloc, this.yloc, xtarget, ytarget, 15);
-    this.move(step.x, step.y);
+    let step = step_toward(this.xloc, this.yloc, xtarget, ytarget, this.speed);
+    this.xloc += step.x;
+    this.yloc += step.y;
 }
 
 
