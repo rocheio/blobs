@@ -3,7 +3,7 @@ Blobs: Game where everything is a blob.
 */
 const CANVAS = document.getElementById('canvas');
 const CONTEXT = CANVAS.getContext('2d');
-var GAME = null;
+const KEYCODEMAP = {37: 'left', 38: 'up', 39: 'right', 40: 'down'}
 
 // Resize the canvas, then redraw it
 function resize_canvas () {
@@ -71,10 +71,12 @@ Game class that controls everything else
 var Game = function () {
     // Attributes
     this.blobs = [];
-    this.renderer = new TrackedInterval(30, this.render_frame.bind(this));
-    this.mover = new TrackedInterval(10, this.move_actors.bind(this));
+    this.graphics = new TrackedInterval(30, this.render_frame.bind(this));
+    this.physics = new TrackedInterval(10, this.move_actors.bind(this));
+    this.spawner = new TrackedInterval(0.5, this.spawn_blob.bind(this));
     this.player = new Blob(rand_between(0, CANVAS.width),
                            rand_between(0, CANVAS.height));
+    this.controls = new PlayerControls(this.player);
 }
 // Render an entire frame of the game at its current state
 Game.prototype.render_frame = function () {
@@ -93,19 +95,16 @@ Game.prototype.draw_debug_info = function () {
     CONTEXT.fillStyle = 'black';
     CONTEXT.fillText("Canvas Width: " + CANVAS.width, 5, 15);
     CONTEXT.fillText("Canvas Height: " + CANVAS.height, 5, 30);
-    CONTEXT.fillText("Frames Per Second: " + this.renderer.rate, 5, 45);
-    CONTEXT.fillText("Moves Per Second: " + this.mover.rate, 5, 60);
+    CONTEXT.fillText("Frames Per Second: " + this.graphics.rate, 5, 45);
+    CONTEXT.fillText("Moves Per Second: " + this.physics.rate, 5, 60);
     CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 75);
 }
 // Spawn blobs on the canvas
-Game.prototype.spawn_blobs = function () {
-    let number_blobs = 5;
-    for (let i = 0; i < number_blobs; i++) {
-        let xloc = rand_between(0, CANVAS.width);
-        let yloc = rand_between(0, CANVAS.height);
-        let radius = rand_between(10, 50);
-        this.blobs.push(new Blob(xloc, yloc, radius));
-    }
+Game.prototype.spawn_blob = function () {
+    let xloc = rand_between(0, CANVAS.width);
+    let yloc = rand_between(0, CANVAS.height);
+    let radius = rand_between(10, 50);
+    this.blobs.push(new Blob(xloc, yloc, radius));
 }
 // Move items on the canvas
 Game.prototype.move_actors = function () {
@@ -118,8 +117,8 @@ Game.prototype.move_actors = function () {
 /*
 Interval that tracks actual actions taken (for FPS monitoring)
 */
-var TrackedInterval = function (target_rate, action) {
-    this.target_rate = target_rate;  // Target Actions Per Second
+var TrackedInterval = function (aps, action) {
+    this.aps = aps;  // Target Actions Per Second
     this.action = action;  // Function to execute each interval
 
     this.rate = 0;  // Calculated at render time
@@ -128,15 +127,47 @@ var TrackedInterval = function (target_rate, action) {
     this.interval = setInterval(function(){
         this.action();
         this._actions += 1;
-    }.bind(this), 1000/this.target_rate);
+    }.bind(this), 1000 / this.aps);
 
-    this.tracker = setInterval(this.update_rate.bind(this), 1000);
+    this.tracker = setInterval(this.track.bind(this), 1000);
 };
 // Calculate the running Actions per Second of the interval
-TrackedInterval.prototype.update_rate = function () {
+TrackedInterval.prototype.track = function () {
     this.rate = this._actions;
     this._actions = 0;
 };
+
+
+/*
+Player Control class to map keyboard/touch input to player actions.
+*/
+var PlayerControls = function (player) {
+    this.player = player;
+    this.add_listeners();
+}
+// Initialize the event listeners for this player
+PlayerControls.prototype.add_listeners = function () {
+    document.addEventListener('keydown', function(event) {
+        if (KEYCODEMAP[event.keyCode] != undefined) {
+            this.action(KEYCODEMAP[event.keyCode])
+        } else {
+            console.log('unknown keydown: ' + event.keyCode);
+        }
+    }.bind(this), false);
+}
+// Translate a string command (e.g. 'left') into player action
+PlayerControls.prototype.action = function (command) {
+    console.log('Player action: ' + command);
+    if (command === 'left') {
+        this.player.move(-5, 0);
+    } else if (command === 'right') {
+        this.player.move(5, 0);
+    } else if (command === 'up') {
+        this.player.move(0, -5);
+    } else if (command === 'down') {
+        this.player.move(0, 5);
+    }
+}
 
 
 /*
@@ -169,8 +200,12 @@ Blob.prototype.draw = function () {
 // Move that blob toward a target
 Blob.prototype.move_toward = function (xtarget, ytarget) {
     let step = step_toward(this.xloc, this.yloc, xtarget, ytarget, this.speed);
-    this.xloc += step.x;
-    this.yloc += step.y;
+    this.move(step.x, step.y);
+}
+// Move the blob using integer amounts
+Blob.prototype.move = function (xstep=0, ystep=0) {
+    this.xloc += xstep;
+    this.yloc += ystep;
 }
 
 
@@ -178,6 +213,5 @@ Blob.prototype.move_toward = function (xtarget, ytarget) {
 window.onload = function () {
     window.addEventListener('resize', resize_canvas, false);
     resize_canvas();
-    GAME = new Game();
-    GAME.spawn_blobs();
+    let game = new Game();
 }
