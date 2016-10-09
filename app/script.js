@@ -70,12 +70,13 @@ Game class that controls everything else
 */
 var Game = function () {
     // Attributes
+    this.max_blobs = 30;
     this.blobs = [];
     this.graphics = new TrackedInterval(30, this.render_frame.bind(this));
     this.physics = new TrackedInterval(10, this.move_actors.bind(this));
     this.spawner = new TrackedInterval(0.5, this.spawn_blob.bind(this));
-    this.player = new Blob(rand_between(0, CANVAS.width),
-                           rand_between(0, CANVAS.height));
+    this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
+                           10, '#DDDDDD');
     this.controls = new PlayerControls(this.player);
 }
 // Render an entire frame of the game at its current state
@@ -96,7 +97,7 @@ Game.prototype.draw_debug_info = function () {
     CONTEXT.fillText("Canvas Width: " + CANVAS.width, 5, 15);
     CONTEXT.fillText("Canvas Height: " + CANVAS.height, 5, 30);
     CONTEXT.fillText("Frames Per Second: " + this.graphics.rate, 5, 45);
-    CONTEXT.fillText("Moves Per Second: " + this.physics.rate, 5, 60);
+    CONTEXT.fillText("Physics Per Second: " + this.physics.rate, 5, 60);
     CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 75);
 }
 // Spawn blobs on the canvas
@@ -104,7 +105,9 @@ Game.prototype.spawn_blob = function () {
     let xloc = rand_between(0, CANVAS.width);
     let yloc = rand_between(0, CANVAS.height);
     let radius = rand_between(10, 50);
-    this.blobs.push(new Blob(xloc, yloc, radius));
+    if (this.blobs.length < this.max_blobs) {
+        this.blobs.push(new Blob(xloc, yloc, radius));
+    }
 }
 // Move items on the canvas
 Game.prototype.move_actors = function () {
@@ -140,33 +143,41 @@ TrackedInterval.prototype.track = function () {
 
 /*
 Player Control class to map keyboard/touch input to player actions.
+Manages pressed actions via "intent" counts of past pressed keys.
 */
 var PlayerControls = function (player) {
     this.player = player;
+    this.max_intent = 5;
+    this.intent = {'vert': 0, 'horiz': 0};
+    // Listeners / Intervals
     this.add_listeners();
+    this.action_interval = setInterval(this.action.bind(this), 100);
 }
 // Initialize the event listeners for this player
 PlayerControls.prototype.add_listeners = function () {
     document.addEventListener('keydown', function(event) {
         if (KEYCODEMAP[event.keyCode] != undefined) {
-            this.action(KEYCODEMAP[event.keyCode])
+            this.intention(KEYCODEMAP[event.keyCode]);
+            this.action();
         } else {
             console.log('unknown keydown: ' + event.keyCode);
         }
     }.bind(this), false);
 }
 // Translate a string command (e.g. 'left') into player action
-PlayerControls.prototype.action = function (command) {
-    console.log('Player action: ' + command);
-    if (command === 'left') {
-        this.player.move(-5, 0);
-    } else if (command === 'right') {
-        this.player.move(5, 0);
-    } else if (command === 'up') {
-        this.player.move(0, -5);
-    } else if (command === 'down') {
-        this.player.move(0, 5);
+PlayerControls.prototype.intention = function (cmd) {
+    let type = (cmd === 'left' | cmd === 'right' ? 'horiz' : 'vert');
+    let increment = (cmd === 'left' | cmd === 'up' ? -1 : 1);
+    let new_value = this.intent[type] + increment;
+    if (Math.abs(new_value) < this.max_intent) {
+        this.intent[type] = new_value;
     }
+}
+// Take an action based on built up intentions
+PlayerControls.prototype.action = function () {
+    xstep = this.intent['horiz'];
+    ystep = this.intent['vert'];
+    this.player.move(xstep, ystep);
 }
 
 
@@ -178,7 +189,7 @@ var Blob = function (xloc, yloc, radius=10, color=null) {
     this.xloc = xloc;
     this.yloc = yloc;
     this.radius = radius;
-    this.speed = (10 - Math.sqrt(radius)) >> 1;  // Canvas pts per movement cycle
+    this.speed = (10 - Math.sqrt(radius)) >> 1;  // Steps per movement cycle
     this.color = (color == null ? rand_color() : color);
     this.border_color = shade_color(this.color, -0.4);
 }
