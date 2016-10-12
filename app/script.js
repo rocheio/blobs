@@ -216,11 +216,12 @@ var PlayerControls = function (player) {
     this.intent_vert = 0;
     this.intent_horiz = 0;
     // Listeners / Intervals
-    this.add_listeners();
+    this.add_keyboard_listeners();
+    this.add_touch_listeners();
     this.action_interval = setInterval(this.action.bind(this), 100);
 }
 // Initialize the event listeners for this player
-PlayerControls.prototype.add_listeners = function () {
+PlayerControls.prototype.add_keyboard_listeners = function () {
     document.addEventListener('keydown', function(event) {
         if (KEYCODEMAP[event.keyCode] != undefined) {
             this.intention(KEYCODEMAP[event.keyCode]);
@@ -229,6 +230,13 @@ PlayerControls.prototype.add_listeners = function () {
             console.log('unknown keydown: ' + event.keyCode);
         }
     }.bind(this), false);
+}
+// Add listeners for touch control
+PlayerControls.prototype.add_touch_listeners = function () {
+    var hammertime = new Hammer(document.getElementById('container'));
+    hammertime.on('swipe', function(ev) {
+    	console.log(ev);
+    });
 }
 // Translate a string command (e.g. 'left') into player action
 PlayerControls.prototype.intention = function (cmd) {
