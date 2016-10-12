@@ -3,7 +3,9 @@ Blobs: Game where everything is a blob.
 */
 const CANVAS = document.getElementById('canvas');
 const CONTEXT = CANVAS.getContext('2d');
-const KEYCODEMAP = {37: 'left', 38: 'up', 39: 'right', 40: 'down'}
+const KEYCODEMAP = {
+    37: 'left', 38: 'up', 39: 'right', 40: 'down', 27: 'escape'
+}
 
 // Resize the canvas, then redraw it
 function resize_canvas () {
@@ -73,17 +75,19 @@ var Game = function () {
     this.score = 0;
     this.max_blobs = 30;
     this.blobs = [];
-    this.graphics = new TrackedInterval(30, this.render.bind(this));
-    this.physics = new TrackedInterval(10, this.interact.bind(this));
+    this.paused = false;
+
+    // Composition (big core chunks)
+    this.graphics = new TrackedInterval(30, this.render_frame.bind(this));
+    this.physics = new TrackedInterval(10, this.render_action.bind(this));
     this.spawner = new TrackedInterval(1, this.spawn_blob.bind(this));
     this.timer = new Timer();
-    this.timer.start();
     this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
                            10, '#DDDDDD');
-    this.controls = new PlayerControls(this.player);
+    this.controls = new Controls(this);
 }
 // Render an entire frame of the game at its current state
-Game.prototype.render = function () {
+Game.prototype.render_frame = function () {
     // CLear the canvas
     CONTEXT.clearRect(0, 0, CANVAS.width, CANVAS.height);
     // Draw Game stuff
@@ -122,9 +126,10 @@ Game.prototype.spawn_blob = function () {
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
 }
-// Taken action for every non-player item on the canvas
+// Taken action for every item on the canvas
 // Loop backward so removal from the list doesn't break things
-Game.prototype.interact = function () {
+Game.prototype.render_action = function () {
+    // Move NPC blobs
     for (let i = this.blobs.length - 1; i >= 0; i--) {
         let blob = this.blobs[i]
         if (blob.overlaps(this.player)) {
@@ -134,7 +139,27 @@ Game.prototype.interact = function () {
             blob.move_toward(this.player.xloc, this.player.yloc);
         }
     }
+    // Move the player
+    this.player.move(this.controls.intent_x,
+                     this.controls.intent_y);
 }
+// Stop all action in the game world until Game is unpaused
+Game.prototype.toggle_pause = function () {
+    if (this.paused) {
+        this.graphics.start();
+        this.physics.start();
+        this.spawner.start();
+        this.timer.start();
+        this.paused = false;
+    } else {
+        this.graphics.pause();
+        this.physics.pause();
+        this.spawner.pause();
+        this.timer.pause();
+        this.paused = true;
+    }
+}
+
 
 
 /*
@@ -143,17 +168,23 @@ Interval that tracks actual actions taken (for FPS monitoring)
 var TrackedInterval = function (aps, action) {
     this.aps = aps;  // Target Actions Per Second
     this.action = action;  // Function to execute each interval
-
     this.rate = 0;  // Calculated at render time
     this._actions = 0;  // Running number of actions taken
-
+    this.start();
+};
+// Start the interval
+TrackedInterval.prototype.start = function () {
+    this.tracker = setInterval(this.track.bind(this), 1000);
     this.interval = setInterval(function(){
         this.action();
         this._actions += 1;
     }.bind(this), 1000 / this.aps);
-
-    this.tracker = setInterval(this.track.bind(this), 1000);
-};
+}
+// Pause the interval
+TrackedInterval.prototype.pause = function () {
+    clearInterval(this.tracker);
+    clearInterval(this.interval);
+}
 // Calculate the running Actions per Second of the interval
 TrackedInterval.prototype.track = function () {
     this.rate = this._actions;
@@ -166,6 +197,7 @@ var Timer = function (tps=1) {
     this.tps = tps;  // Ticks Per Second
     this.current_seconds = 0;
     this.interval = null;
+    this.start();
 }
 // Start the timer to tick up at the defined rate
 Timer.prototype.start = function() {
@@ -207,59 +239,55 @@ Timer.prototype.time = function() {
 
 
 /*
-Player Control class to map keyboard/touch input to player actions.
-Manages pressed actions via "intent" counts of past pressed keys.
+Control class to map keyboard/touch input to Game actions.
+Manages direction actions via "intent" counts of direction history.
 */
-var PlayerControls = function (player) {
-    this.player = player;
+var Controls = function (game) {
+    this.game = game;
     this.intent_max = 8;
-    this.intent_vert = 0;
-    this.intent_horiz = 0;
+    this.intent_y = 0;
+    this.intent_x = 0;
     // Listeners / Intervals
     this.add_keyboard_listeners();
     this.add_touch_listeners();
-    this.action_interval = setInterval(this.action.bind(this), 100);
 }
-// Initialize the event listeners for this player
-PlayerControls.prototype.add_keyboard_listeners = function () {
+// Add listeners for keyboard commands
+Controls.prototype.add_keyboard_listeners = function () {
     document.addEventListener('keydown', function(event) {
-        if (KEYCODEMAP[event.keyCode] != undefined) {
-            this.intention(KEYCODEMAP[event.keyCode]);
-        } else {
+        let code = KEYCODEMAP[event.keyCode];
+        if (code == undefined) {
             console.log('unknown keydown: ' + event.keyCode);
+        } else if (code == 'escape') {
+            this.game.toggle_pause();
+        } else {
+            this.direction(code);
         }
     }.bind(this), false);
 }
-// Add listeners for touch control
-PlayerControls.prototype.add_touch_listeners = function () {
+// Add listeners for touch controls
+Controls.prototype.add_touch_listeners = function () {
     var hammertime = new Hammer(document.getElementById('container'));
     hammertime.on('pan', function(event) {
         if (event.direction == 2) {
-            this.intention('left');
+            this.direction('left');
         } else if (event.direction == 4) {
-            this.intention('right');
+            this.direction('right');
         } else if (event.direction == 8) {
-            this.intention('up');
+            this.direction('up');
         } else if (event.direction == 16) {
-            this.intention('down');
+            this.direction('down');
         }
     }.bind(this));
 }
-// Translate a string command (e.g. 'left') into player action
-PlayerControls.prototype.intention = function (cmd) {
+// Translate a direction command (e.g. 'left') into movement intent
+Controls.prototype.direction = function (cmd) {
     let intenttype = (cmd === 'left' | cmd === 'right' ?
-                      'intent_horiz' : 'intent_vert');
+                      'intent_x' : 'intent_y');
     let increment = (cmd === 'left' | cmd === 'up' ? -1 : 1);
     let new_value = this[intenttype] + increment;
     if (Math.abs(new_value) < this.intent_max) {
         this[intenttype] = new_value;
     }
-}
-// Take an action based on built up intentions
-PlayerControls.prototype.action = function () {
-    xstep = this.intent_horiz;
-    ystep = this.intent_vert;
-    this.player.move(xstep, ystep);
 }
 
 
