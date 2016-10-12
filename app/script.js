@@ -70,17 +70,20 @@ Game class that controls everything else
 */
 var Game = function () {
     // Attributes
+    this.score = 0;
     this.max_blobs = 30;
     this.blobs = [];
-    this.graphics = new TrackedInterval(30, this.render_frame.bind(this));
-    this.physics = new TrackedInterval(10, this.move_actors.bind(this));
-    this.spawner = new TrackedInterval(0.5, this.spawn_blob.bind(this));
+    this.graphics = new TrackedInterval(30, this.render.bind(this));
+    this.physics = new TrackedInterval(10, this.interact.bind(this));
+    this.spawner = new TrackedInterval(1, this.spawn_blob.bind(this));
+    this.timer = new Timer();
+    this.timer.start();
     this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
                            10, '#DDDDDD');
     this.controls = new PlayerControls(this.player);
 }
 // Render an entire frame of the game at its current state
-Game.prototype.render_frame = function () {
+Game.prototype.render = function () {
     // CLear the canvas
     CONTEXT.clearRect(0, 0, CANVAS.width, CANVAS.height);
     // Draw Game stuff
@@ -88,17 +91,27 @@ Game.prototype.render_frame = function () {
         blob.draw();
     });
     this.player.draw();
-    this.draw_debug_info();
+    this._draw_debug_info();
 };
 // Write debugging info to the canvas
-Game.prototype.draw_debug_info = function () {
+Game.prototype._draw_debug_info = function () {
     CONTEXT.font = '12px Mono';
     CONTEXT.fillStyle = 'black';
-    CONTEXT.fillText("Canvas Width: " + CANVAS.width, 5, 15);
-    CONTEXT.fillText("Canvas Height: " + CANVAS.height, 5, 30);
-    CONTEXT.fillText("Frames Per Second: " + this.graphics.rate, 5, 45);
-    CONTEXT.fillText("Physics Per Second: " + this.physics.rate, 5, 60);
-    CONTEXT.fillText("Number Blobs: " + this.blobs.length, 5, 75);
+    let info = [
+        ["Canvas Width", CANVAS.width],
+        ["Canvas Height", CANVAS.height],
+        ["Frames Per Second", this.graphics.rate],
+        ["Physics Per Second", this.physics.rate],
+        ["Number Blobs", this.blobs.length],
+        ["Time", this.timer.time()],
+        ["Score", this.score],
+    ]
+    let ypos = 0;
+    info.forEach(function(items){
+        let label_value = items[0] + ': ' + items[1];
+        ypos += 15;
+        CONTEXT.fillText(label_value, 5, ypos);
+    });
 }
 // Spawn blobs on the canvas
 Game.prototype.spawn_blob = function () {
@@ -109,11 +122,18 @@ Game.prototype.spawn_blob = function () {
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
 }
-// Move items on the canvas
-Game.prototype.move_actors = function () {
-    this.blobs.forEach(function(blob){
-        blob.move_toward(this.player.xloc, this.player.yloc);
-    }.bind(this));
+// Taken action for every non-player item on the canvas
+// Loop backward so removal from the list doesn't break things
+Game.prototype.interact = function () {
+    for (let i = this.blobs.length - 1; i >= 0; i--) {
+        let blob = this.blobs[i]
+        if (blob.overlaps(this.player)) {
+            this.score += blob.points;
+            this.blobs.splice(i, 1);
+        } else {
+            blob.move_toward(this.player.xloc, this.player.yloc);
+        }
+    }
 }
 
 
@@ -141,14 +161,60 @@ TrackedInterval.prototype.track = function () {
 };
 
 
+// Object to track and display time
+var Timer = function (tps=1) {
+    this.tps = tps;  // Ticks Per Second
+    this.current_seconds = 0;
+    this.interval = null;
+}
+// Start the timer to tick up at the defined rate
+Timer.prototype.start = function() {
+    this.interval = setInterval(this.tick.bind(this), 1000 / this.tps);
+}
+// Stop ticking up until timer is started again
+Timer.prototype.pause = function() {
+    clearInterval(this.interval);
+}
+// Zero out the timer and reset the display to 0:00
+Timer.prototype.reset = function() {
+    clearInterval(this.interval);
+    this.current_seconds = 0;
+}
+// Tick up the time and display the new time in HTML
+Timer.prototype.tick = function() {
+    this.current_seconds += 1;
+}
+// Return the time as string from 0:00 to 99:99:99
+Timer.prototype.time = function() {
+   var hours, minutes, seconds = 0;
+   var formatted = '';
+   hours = (this.current_seconds / (60 * 60)) >> 0;
+   if (hours > 0) {
+       formatted += hours + ':';
+   }
+   minutes = (this.current_seconds / 60) >> 0;
+   if (hours > 0 && minutes < 10) {
+       formatted += '0';
+   }
+   formatted += minutes + ':';
+   seconds = this.current_seconds % 60;
+   if (seconds < 10) {
+       formatted += '0';
+   }
+   formatted += seconds;
+   return formatted;
+}
+
+
 /*
 Player Control class to map keyboard/touch input to player actions.
 Manages pressed actions via "intent" counts of past pressed keys.
 */
 var PlayerControls = function (player) {
     this.player = player;
-    this.max_intent = 5;
-    this.intent = {'vert': 0, 'horiz': 0};
+    this.intent_max = 5;
+    this.intent_vert = 0;
+    this.intent_horiz = 0;
     // Listeners / Intervals
     this.add_listeners();
     this.action_interval = setInterval(this.action.bind(this), 100);
@@ -166,17 +232,18 @@ PlayerControls.prototype.add_listeners = function () {
 }
 // Translate a string command (e.g. 'left') into player action
 PlayerControls.prototype.intention = function (cmd) {
-    let type = (cmd === 'left' | cmd === 'right' ? 'horiz' : 'vert');
+    let intenttype = (cmd === 'left' | cmd === 'right' ?
+                      'intent_horiz' : 'intent_vert');
     let increment = (cmd === 'left' | cmd === 'up' ? -1 : 1);
-    let new_value = this.intent[type] + increment;
-    if (Math.abs(new_value) < this.max_intent) {
-        this.intent[type] = new_value;
+    let new_value = this[intenttype] + increment;
+    if (Math.abs(new_value) < this.intent_max) {
+        this[intenttype] = new_value;
     }
 }
 // Take an action based on built up intentions
 PlayerControls.prototype.action = function () {
-    xstep = this.intent['horiz'];
-    ystep = this.intent['vert'];
+    xstep = this.intent_horiz;
+    ystep = this.intent_vert;
     this.player.move(xstep, ystep);
 }
 
@@ -186,6 +253,7 @@ Blob class that floats around the canvas
 */
 var Blob = function (xloc, yloc, radius=10, color=null) {
     // Attributes
+    this.points = 50;
     this.xloc = xloc;
     this.yloc = yloc;
     this.radius = radius;
@@ -217,6 +285,16 @@ Blob.prototype.move_toward = function (xtarget, ytarget) {
 Blob.prototype.move = function (xstep=0, ystep=0) {
     this.xloc += xstep;
     this.yloc += ystep;
+}
+// Calculate if this blob overlaps with another blob
+Blob.prototype.overlaps = function (target) {
+    let distance = Math.hypot(target.yloc - this.yloc,
+                              target.xloc - this.xloc);
+    if (target.radius + this.radius > distance) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 
