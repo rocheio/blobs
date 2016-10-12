@@ -212,7 +212,7 @@ Manages pressed actions via "intent" counts of past pressed keys.
 */
 var PlayerControls = function (player) {
     this.player = player;
-    this.intent_max = 5;
+    this.intent_max = 8;
     this.intent_vert = 0;
     this.intent_horiz = 0;
     // Listeners / Intervals
@@ -225,7 +225,6 @@ PlayerControls.prototype.add_keyboard_listeners = function () {
     document.addEventListener('keydown', function(event) {
         if (KEYCODEMAP[event.keyCode] != undefined) {
             this.intention(KEYCODEMAP[event.keyCode]);
-            this.action();
         } else {
             console.log('unknown keydown: ' + event.keyCode);
         }
@@ -234,9 +233,17 @@ PlayerControls.prototype.add_keyboard_listeners = function () {
 // Add listeners for touch control
 PlayerControls.prototype.add_touch_listeners = function () {
     var hammertime = new Hammer(document.getElementById('container'));
-    hammertime.on('swipe', function(ev) {
-    	console.log(ev);
-    });
+    hammertime.on('pan', function(event) {
+        if (event.direction == 2) {
+            this.intention('left');
+        } else if (event.direction == 4) {
+            this.intention('right');
+        } else if (event.direction == 8) {
+            this.intention('up');
+        } else if (event.direction == 16) {
+            this.intention('down');
+        }
+    }.bind(this));
 }
 // Translate a string command (e.g. 'left') into player action
 PlayerControls.prototype.intention = function (cmd) {
@@ -265,7 +272,7 @@ var Blob = function (xloc, yloc, radius=10, color=null) {
     this.xloc = xloc;
     this.yloc = yloc;
     this.radius = radius;
-    this.speed = (10 - Math.sqrt(radius)) >> 1;  // Steps per movement cycle
+    this.speed = (15 - Math.sqrt(radius)) >> 1;  // Steps per movement cycle
     this.color = (color == null ? rand_color() : color);
     this.border_color = shade_color(this.color, -0.4);
 }
