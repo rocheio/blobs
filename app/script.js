@@ -4,7 +4,7 @@ Blobs: Game where everything is a blob.
 const CANVAS = document.getElementById('canvas');
 const CONTEXT = CANVAS.getContext('2d');
 const KEYCODEMAP = {
-    37: 'left', 38: 'up', 39: 'right', 40: 'down', 27: 'escape'
+    37: 'left', 38: 'up', 39: 'right', 40: 'down', 27: 'escape', 32: 'space'
 }
 
 // Resize the canvas, then redraw it
@@ -78,13 +78,13 @@ var Game = function () {
     this.paused = false;
 
     // Composition (big core chunks)
+    this.timer = new Timer();
+    this.controls = new Controls(this);
     this.graphics = new TrackedInterval(30, this.render_frame.bind(this));
     this.physics = new TrackedInterval(10, this.render_action.bind(this));
     this.spawner = new TrackedInterval(1, this.spawn_blob.bind(this));
-    this.timer = new Timer();
     this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
                            10, '#DDDDDD');
-    this.controls = new Controls(this);
 }
 // Render an entire frame of the game at its current state
 Game.prototype.render_frame = function () {
@@ -121,7 +121,8 @@ Game.prototype._draw_debug_info = function () {
 Game.prototype.spawn_blob = function () {
     let xloc = rand_between(0, CANVAS.width);
     let yloc = rand_between(0, CANVAS.height);
-    let radius = rand_between(10, 50);
+    let radius = rand_between(this.player.radius * 0.25,
+                              this.player.radius * 1.5);
     if (this.blobs.length < this.max_blobs) {
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
@@ -133,8 +134,13 @@ Game.prototype.render_action = function () {
     for (let i = this.blobs.length - 1; i >= 0; i--) {
         let blob = this.blobs[i]
         if (blob.overlaps(this.player)) {
-            this.score += blob.points;
-            this.blobs.splice(i, 1);
+            if (blob.radius > this.player.radius) {
+                this.game_over();
+            } else {
+                this.score += blob.points;
+                this.blobs.splice(i, 1);
+                this.player.radius += 1;
+            }
         } else {
             blob.move_toward(this.player.xloc, this.player.yloc);
         }
@@ -146,20 +152,48 @@ Game.prototype.render_action = function () {
 // Stop all action in the game world until Game is unpaused
 Game.prototype.toggle_pause = function () {
     if (this.paused) {
-        this.graphics.start();
-        this.physics.start();
-        this.spawner.start();
-        this.timer.start();
-        this.paused = false;
+        this.start();
     } else {
-        this.graphics.pause();
-        this.physics.pause();
-        this.spawner.pause();
-        this.timer.pause();
-        this.paused = true;
+        this.pause();
     }
 }
-
+// End the game and display final stats
+Game.prototype.game_over = function () {
+    this.toggle_pause();
+    let display_x = CANVAS.width / 2 - 60;
+    let display_y = CANVAS.height / 8;
+    CONTEXT.font = '30px Mono bold';
+    CONTEXT.fillStyle = 'red';
+    CONTEXT.fillText('game over', display_x, display_y);
+    CONTEXT.font = '20px Mono bold';
+    CONTEXT.fillStyle = 'black';
+    CONTEXT.fillText('score: ' + this.score, display_x, display_y + 25);
+}
+// Reset the game
+Game.prototype.reset = function () {
+    this.pause();
+    this.blobs = [];
+    this.timer.reset();
+    this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
+                           10, '#DDDDDD');
+    this.start();
+}
+// Start the game
+Game.prototype.start = function () {
+    this.graphics.start();
+    this.physics.start();
+    this.spawner.start();
+    this.timer.start();
+    this.paused = false;
+}
+// Pause the game
+Game.prototype.pause = function () {
+    this.graphics.pause();
+    this.physics.pause();
+    this.spawner.pause();
+    this.timer.pause();
+    this.paused = true;
+}
 
 
 /*
@@ -259,6 +293,8 @@ Controls.prototype.add_keyboard_listeners = function () {
             console.log('unknown keydown: ' + event.keyCode);
         } else if (code == 'escape') {
             this.game.toggle_pause();
+        } else if (code == 'space') {
+            this.game.reset();
         } else {
             this.direction(code);
         }
