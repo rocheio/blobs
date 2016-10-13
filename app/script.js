@@ -84,7 +84,7 @@ Game.prototype.new_game = function () {
     // Composition
     this.timer = new Timer();
     this.controls = new Controls(this);
-    this.camera = new Camera(Math.min(CANVAS.width, CANVAS.height) / 3);
+    this.camera = new Camera();
     this.graphics = new TrackedInterval(
         GRAPHICS_FPS, this.render_frame.bind(this)
     );
@@ -92,8 +92,7 @@ Game.prototype.new_game = function () {
         PHYSICS_FPS, this.tick_physics.bind(this)
     );
     this.spawner = new TrackedInterval(1, this.spawn_blob.bind(this));
-    this.player = new Blob(CANVAS.width / 2, CANVAS.height / 2,
-                           10, '#DDDDDD');
+    this.player = new Blob(0, 0, 10, '#DDDDDD');
 }
 // Render an entire frame of the game at its current state
 Game.prototype.render_frame = function () {
@@ -208,23 +207,28 @@ Game.prototype.pause = function () {
 
 
 /*
-Represents a Camera to view all Game objects.
-The view will only display a part of the game world.
+Represents a Camera to track a subset view of the game world.
+The Camera will adjust to follow player movement and ensure
+the player is always at the center of the visible game area.
 */
-var Camera = function (boundary) {
-    this.xoffset = 0;
-    this.yoffset = 0;
-    this.boundary = boundary;
+var Camera = function () {
+    this.xoffset = -CANVAS.width / 2;  // Offset with Game grid X
+    this.yoffset = -CANVAS.height / 2;  // Offset with Game grid Y
+    this.xbound = CANVAS.width / 3;
+    this.ybound = CANVAS.height / 3;
 }
 // Adjust the offset based on player location and movement speed
 Camera.prototype.adjust = function (xloc, yloc, move_x, move_y) {
-    if ((xloc > CANVAS.width - this.boundary) |
-            (xloc < this.boundary)) {
-        this.xoffset -= move_x;
+    let passing_right = (xloc > this.xoffset + CANVAS.width - this.xbound);
+    let passing_left = (xloc < this.xoffset + this.xbound);
+    let passing_up = (yloc > this.yoffset + CANVAS.height - this.ybound);
+    let passing_down = (yloc < this.yoffset + this.ybound);
+
+    if (passing_right | passing_left) {
+        this.xoffset += move_x;
     }
-    if ((yloc > CANVAS.height - this.boundary) |
-            (yloc < this.boundary)) {
-        this.yoffset -= move_y;
+    if (passing_up | passing_down) {
+        this.yoffset += move_y;
     }
 }
 
@@ -381,7 +385,7 @@ Blob.prototype.toString = function () {
 // Draw the blob on the canvas
 Blob.prototype.draw = function (xoffset=0, yoffset=0) {
     CONTEXT.beginPath();
-    CONTEXT.arc(this.xloc + xoffset, this.yloc + yoffset,
+    CONTEXT.arc(this.xloc - xoffset, this.yloc - yoffset,
                 this.radius, 0, 2 * Math.PI, false);
     CONTEXT.fillStyle = this.color;
     CONTEXT.fill();
