@@ -13,6 +13,7 @@ const KEYCODEMAP = {
 const MAX_BLOBS = 30;
 const GRAPHICS_FPS = 30;
 const PHYSICS_FPS = 20;
+const DEFAULT_BG_COLOR = "#CCCCFF";
 
 
 // Resize the canvas, then redraw it with the new size
@@ -54,12 +55,12 @@ function shade_color(color, percent) {
 
 // Return (x, y) coordinates to move to from a current
 // (x, y) position to a target (x, y) position with given distance
-function step_toward(x1, y1, x2, y2, distance) {
+function step_toward(x1, y1, x2, y2, speed) {
     let xdiff = x2 - x1;
     let ydiff = y2 - y1;
     let radians = Math.atan2(ydiff, xdiff);
-    let xstep = Math.cos(radians) * distance;
-    let ystep = Math.sin(radians) * distance;
+    let xstep = Math.cos(radians) * speed;
+    let ystep = Math.sin(radians) * speed;
 
     xstep = Math.abs(xstep) < Math.abs(xdiff) ? xstep : xdiff;
     ystep = Math.abs(ystep) < Math.abs(ydiff) ? ystep : ydiff;
@@ -81,6 +82,10 @@ Game.prototype.new_game = function () {
     this.blobs = [];
     this.paused = false;
 
+    // Background color
+    this.bg_color = DEFAULT_BG_COLOR;
+    this.current_shade = 0;
+
     // Composition
     this.timer = new Timer();
     this.controls = new Controls(this);
@@ -98,6 +103,9 @@ Game.prototype.new_game = function () {
 Game.prototype.render_frame = function () {
     // CLear the canvas
     CONTEXT.clearRect(0, 0, CANVAS.width, CANVAS.height);
+    // Draw the background color
+    CONTEXT.fillStyle = this.bg_color;
+    CONTEXT.fillRect(0, 0, CANVAS.width, CANVAS.height);
     // Draw Game stuff
     this.blobs.forEach(function(blob){
         blob.draw(this.camera.xoffset, this.camera.yoffset);
@@ -117,6 +125,7 @@ Game.prototype._draw_debug_info = function () {
         ["Number Blobs", this.blobs.length],
         ["Time", this.timer.time()],
         ["Score", this.score],
+        ["Player at", (this.player.xloc + ", " + this.player.yloc)]
     ]
     let ypos = 0;
     info.forEach(function(items){
@@ -162,6 +171,8 @@ Game.prototype.tick_physics = function () {
     this.player.move(move_x, move_y);
     // Update the camera view if player is at boundaries
     this.camera.adjust(this.player.xloc, this.player.yloc, move_x, move_y);
+    // Update the background color based on player position
+    this.update_bg_color();
 }
 // Stop all action in the game world until Game is unpaused
 Game.prototype.toggle_pause = function () {
@@ -204,6 +215,15 @@ Game.prototype.pause = function () {
     this.timer.pause();
     this.paused = true;
 }
+// Update background color based on player position
+Game.prototype.update_bg_color = function () {
+    let offset = this.player.distance_from(0, 0);
+    let shade = Math.min(1, (offset >> 5) / 100);
+    if (shade !== this.current_shade) {
+        this.current_shade = shade;
+        this.bg_color = shade_color(DEFAULT_BG_COLOR, -shade);
+    }
+}
 
 
 /*
@@ -214,8 +234,8 @@ the player is always at the center of the visible game area.
 var Camera = function () {
     this.xoffset = -CANVAS.width / 2;  // Offset with Game grid X
     this.yoffset = -CANVAS.height / 2;  // Offset with Game grid Y
-    this.xbound = CANVAS.width / 3;
-    this.ybound = CANVAS.height / 3;
+    this.xbound = CANVAS.width / 4;
+    this.ybound = CANVAS.height / 4;
 }
 // Adjust the offset based on player location and movement speed
 Camera.prototype.adjust = function (xloc, yloc, move_x, move_y) {
@@ -394,8 +414,8 @@ Blob.prototype.draw = function (xoffset=0, yoffset=0) {
     CONTEXT.stroke();
 }
 // Move that blob toward a target
-Blob.prototype.move_toward = function (xtarget, ytarget) {
-    let step = step_toward(this.xloc, this.yloc, xtarget, ytarget, this.speed);
+Blob.prototype.move_toward = function (xloc, yloc) {
+    let step = step_toward(this.xloc, this.yloc, xloc, yloc, this.speed);
     this.move(step.x, step.y);
 }
 // Move the blob using integer amounts
@@ -413,7 +433,10 @@ Blob.prototype.overlaps = function (target) {
         return false;
     }
 }
-
+// Return the absolute distance this Blob is from center of map
+Blob.prototype.distance_from = function (xloc=0, yloc=0) {
+    return (Math.abs(this.xloc + xloc) + Math.abs(this.yloc + yloc));
+}
 
 // Start the game on script load
 window.onload = function () {
