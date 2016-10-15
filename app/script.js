@@ -425,17 +425,16 @@ Blob.prototype.move = function (xstep=0, ystep=0) {
 }
 // Calculate if this blob overlaps with another blob
 Blob.prototype.overlaps = function (target) {
-    let distance = Math.hypot(target.yloc - this.yloc,
-                              target.xloc - this.xloc);
+    let distance = this.distance_from(target.xloc, target.yloc);
     if (target.radius + this.radius > distance) {
         return true;
     } else {
         return false;
     }
 }
-// Return the absolute distance this Blob is from center of map
+// Return the absolute distance this Blob is from coordinates
 Blob.prototype.distance_from = function (xloc=0, yloc=0) {
-    return (Math.abs(this.xloc + xloc) + Math.abs(this.yloc + yloc));
+    return Math.hypot(yloc - this.yloc, xloc - this.xloc);
 }
 
 // Start the game on script load
