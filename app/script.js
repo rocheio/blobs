@@ -150,19 +150,24 @@ Game.prototype.spawn_blob = function () {
 // Taken action for every item on the canvas
 // Loop backward so removal from the list doesn't break things
 Game.prototype.tick_physics = function () {
+    // End the game if the player has died
+    if (!this.player.alive) {
+        this.game_over();
+    }
     // Move NPC blobs
     for (let i = this.blobs.length - 1; i >= 0; i--) {
-        let blob = this.blobs[i]
+        let blob = this.blobs[i];
         if (blob.overlaps(this.player)) {
-            if (blob.radius > this.player.radius) {
-                this.game_over();
-            } else {
-                this.score += blob.points;
-                this.blobs.splice(i, 1);
-                this.player.radius += 1;
-            }
+            blob.collide_with(this.player);
         } else {
             blob.move_toward(this.player.xloc, this.player.yloc);
+        }
+    }
+    // Calculate score for and remove blobs that have died this round
+    for (let i = this.blobs.length - 1; i >= 0; i--) {
+        if (!this.blobs[i].alive) {
+            this.score += this.blobs[i].points;
+            this.blobs.splice(i, 1);
         }
     }
     // Move the player
@@ -389,6 +394,7 @@ Blob class that floats around the canvas
 */
 var Blob = function (xloc, yloc, radius=10, color=null) {
     // Attributes
+    this.alive = true;
     this.points = 50;
     this.xloc = xloc;
     this.yloc = yloc;
@@ -436,6 +442,17 @@ Blob.prototype.overlaps = function (target) {
 Blob.prototype.distance_from = function (xloc=0, yloc=0) {
     return Math.hypot(yloc - this.yloc, xloc - this.xloc);
 }
+// Collide with another blob, acting based on which blob is bigger
+Blob.prototype.collide_with = function (other) {
+    if (this.radius > other.radius) {
+        other.alive = false;
+        this.radius += 1;
+    } else {
+        this.alive = false;
+        other.radius += 1;
+    }
+}
+
 
 // Start the game on script load
 window.onload = function () {
