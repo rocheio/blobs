@@ -9,11 +9,14 @@ const KEYCODEMAP = {
     27: 'escape', 32: 'space'
 }
 
-// Fiddly bits to make the game more fun?
-const MAX_BLOBS = 30;
-const GRAPHICS_FPS = 30;
-const PHYSICS_FPS = 20;
-const DEFAULT_BG_COLOR = "#CCCCFF";
+/*
+Constants used to tweak the game to make it more fun.
+*/
+const MAX_BLOBS = 30;  // Maximum blobs in the game at any given timee
+const GRAPHICS_FPS = 30;  // Number of renders/second for animations
+const PHYSICS_FPS = 20;  // Number of actions/second for game objects
+const DEFAULT_BG_COLOR = "#BBCCFF";  // Starting BG color for the game
+const SPAWN_BUFFER = [500, 1000]; // Range from player where blobs spawn
 
 
 // Resize the canvas, then redraw it with the new size
@@ -26,6 +29,11 @@ function resize_canvas () {
 // Return random integer between two values
 function rand_between(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Return positive or negative 1 randomly
+function rand_pos_or_neg() {
+    return Math.random() < 0.5 ? -1 : 1;
 }
 
 // Return random hex code color
@@ -136,14 +144,13 @@ Game.prototype._draw_debug_info = function () {
 }
 // Spawn blobs on the canvas near player but not within 50 px
 Game.prototype.spawn_blob = function () {
-    let buffer = 500;
-    let xloc = rand_between(this.player.xloc - buffer,
-                            this.player.xloc + buffer);
-    let yloc = rand_between(this.player.yloc - buffer,
-                            this.player.yloc + buffer);
-    let radius = rand_between(this.player.radius * 0.25,
-                              this.player.radius * 1.25);
     if (this.blobs.length < MAX_BLOBS) {
+        let xdist = rand_between(SPAWN_BUFFER[0], SPAWN_BUFFER[1]);
+        let ydist = rand_between(SPAWN_BUFFER[0], SPAWN_BUFFER[1]);
+        let xloc = this.player.xloc + xdist * rand_pos_or_neg();
+        let yloc = this.player.yloc + ydist * rand_pos_or_neg();
+        let radius = rand_between(this.player.radius * 0.25,
+                                  this.player.radius * 1.25);
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
 }
