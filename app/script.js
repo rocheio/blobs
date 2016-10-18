@@ -27,12 +27,12 @@ function resize_canvas () {
 }
 
 // Return random integer between two values
-function rand_between(min, max) {
+function rand_between (min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 // Return positive or negative 1 randomly
-function rand_pos_or_neg() {
+function rand_pos_or_neg () {
     return Math.random() < 0.5 ? -1 : 1;
 }
 
@@ -43,7 +43,7 @@ function rand_color () {
 
 // Return darker hex color from a hex color
 // (Positive percent for lighter, negative for darker)
-function shade_color(color, percent) {
+function shade_color (color, percent) {
     let f = parseInt(color.slice(1), 16),
         t = percent < 0 ? 0 : 255,
         p = percent < 0 ? percent * -1 : percent,
@@ -59,21 +59,6 @@ function shade_color(color, percent) {
         ).toString(16).slice(1)
     );
     return darker;
-}
-
-// Return (x, y) coordinates to move to from a current
-// (x, y) position to a target (x, y) position with given distance
-function step_toward(x1, y1, x2, y2, speed) {
-    let xdiff = x2 - x1;
-    let ydiff = y2 - y1;
-    let radians = Math.atan2(ydiff, xdiff);
-    let xstep = Math.cos(radians) * speed;
-    let ystep = Math.sin(radians) * speed;
-
-    xstep = Math.abs(xstep) < Math.abs(xdiff) ? xstep : xdiff;
-    ystep = Math.abs(ystep) < Math.abs(ydiff) ? ystep : ydiff;
-
-    return {'x': xstep, 'y': ystep};
 }
 
 
@@ -177,7 +162,9 @@ Game.prototype.tick_physics = function () {
                 break
             }
         }
-        blob.move_toward(this.player.xloc, this.player.yloc);
+        // Set the blob target to the player, and move the blob
+        blob.set_target(this.player.xloc, this.player.yloc);
+        blob.move();
     }
     // Calculate score for and remove blobs that have died this round
     for (let i = this.blobs.length - 1; i >= 0; i--) {
@@ -187,11 +174,11 @@ Game.prototype.tick_physics = function () {
         }
     }
     // Move the player
-    let move_x = this.controls.intent_x;
-    let move_y = this.controls.intent_y;
-    this.player.move(move_x, move_y);
+    let xstep = this.controls.intent_x;
+    let ystep = this.controls.intent_y;
+    this.player.step(xstep, ystep);
     // Update the camera view if player is at boundaries
-    this.camera.adjust(this.player.xloc, this.player.yloc, move_x, move_y);
+    this.camera.adjust(this.player.xloc, this.player.yloc, xstep, ystep);
     // Update the background color based on player position
     this.update_bg_color();
 }
@@ -259,17 +246,17 @@ var Camera = function () {
     this.ybound = CANVAS.height / 4;
 }
 // Adjust the offset based on player location and movement speed
-Camera.prototype.adjust = function (xloc, yloc, move_x, move_y) {
+Camera.prototype.adjust = function (xloc, yloc, xstep, ystep) {
     let passing_right = (xloc > this.xoffset + CANVAS.width - this.xbound);
     let passing_left = (xloc < this.xoffset + this.xbound);
     let passing_up = (yloc > this.yoffset + CANVAS.height - this.ybound);
     let passing_down = (yloc < this.yoffset + this.ybound);
 
     if (passing_right | passing_left) {
-        this.xoffset += move_x;
+        this.xoffset += xstep;
     }
     if (passing_up | passing_down) {
-        this.yoffset += move_y;
+        this.yoffset += ystep;
     }
 }
 
@@ -312,24 +299,24 @@ var Timer = function (tps=1) {
     this.start();
 }
 // Start the timer to tick up at the defined rate
-Timer.prototype.start = function() {
+Timer.prototype.start = function () {
     this.interval = setInterval(this.tick.bind(this), 1000 / this.tps);
 }
 // Stop ticking up until timer is started again
-Timer.prototype.pause = function() {
+Timer.prototype.pause = function () {
     clearInterval(this.interval);
 }
 // Zero out the timer and reset the display to 0:00
-Timer.prototype.reset = function() {
+Timer.prototype.reset = function () {
     clearInterval(this.interval);
     this.current_seconds = 0;
 }
 // Tick up the time and display the new time in HTML
-Timer.prototype.tick = function() {
+Timer.prototype.tick = function () {
     this.current_seconds += 1;
 }
 // Return the time as string from 0:00 to 99:99:99
-Timer.prototype.time = function() {
+Timer.prototype.time = function () {
    var hours, minutes, seconds = 0;
    var formatted = '';
    hours = (this.current_seconds / (60 * 60)) >> 0;
@@ -414,6 +401,8 @@ var Blob = function (xloc, yloc, radius=10, color=null) {
     this.points = 50;
     this.xloc = xloc;
     this.yloc = yloc;
+    this.xtarget = 0;
+    this.ytarget = 0;
     this.radius = radius;
     this.speed = (15 - Math.sqrt(radius)) >> 1;  // Steps per movement cycle
     this.color = (color == null ? rand_color() : color);
@@ -435,13 +424,24 @@ Blob.prototype.draw = function (xoffset=0, yoffset=0) {
     CONTEXT.strokeStyle = this.border_color;
     CONTEXT.stroke();
 }
-// Move that blob toward a target
-Blob.prototype.move_toward = function (xloc, yloc) {
-    let step = step_toward(this.xloc, this.yloc, xloc, yloc, this.speed);
-    this.move(step.x, step.y);
+// Set the target for a blob
+Blob.prototype.set_target = function (xloc, yloc) {
+    this.xtarget = xloc;
+    this.ytarget = yloc;
 }
-// Move the blob using integer amounts
-Blob.prototype.move = function (xstep=0, ystep=0) {
+// Move the blob toward its target
+Blob.prototype.move = function () {
+    let xdiff = this.xtarget - this.xloc;
+    let ydiff = this.ytarget - this.yloc;
+    let radians = Math.atan2(ydiff, xdiff);
+    let xstep = Math.cos(radians) * this.speed;
+    let ystep = Math.sin(radians) * this.speed;
+    xstep = Math.abs(xstep) < Math.abs(xdiff) ? xstep : xdiff;
+    ystep = Math.abs(ystep) < Math.abs(ydiff) ? ystep : ydiff;
+    this.step(xstep, ystep);
+}
+// Move the blob a single step using integer amounts
+Blob.prototype.step = function (xstep=0, ystep=0) {
     this.xloc += xstep;
     this.yloc += ystep;
 }
