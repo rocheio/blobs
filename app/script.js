@@ -146,32 +146,19 @@ Game.prototype.tick_physics = function () {
     if (!this.player.alive) {
         this.game_over();
     }
-    // Make each blob take an action this turn (max 1 collide each per turn)
+
+    this.collision_detection();
+
+    // Calculate score for and remove blobs that have died this round
     for (let i = this.blobs.length - 1; i >= 0; i--) {
         let blob = this.blobs[i];
-        if (blob.overlaps(this.player)) {
-            blob.collide_with(this.player);
-            continue
-        }
-        // Check if the blob collides with any other blobs
-        // (Only check downward in blob list, so as not to duplicate checks)
-        for (let j = i - 1; j >= 0; j--) {
-            let other = this.blobs[j];
-            if (blob.overlaps(other)) {
-                blob.collide_with(other);
-                break
-            }
+        if (!blob.alive) {
+            this.score += blob.points;
+            this.blobs.splice(i, 1);
         }
         // Set the blob target to the player, and move the blob
         blob.set_target(this.player.xloc, this.player.yloc);
         blob.move();
-    }
-    // Calculate score for and remove blobs that have died this round
-    for (let i = this.blobs.length - 1; i >= 0; i--) {
-        if (!this.blobs[i].alive) {
-            this.score += this.blobs[i].points;
-            this.blobs.splice(i, 1);
-        }
     }
     // Move the player
     let xstep = this.controls.intent_x;
@@ -181,6 +168,22 @@ Game.prototype.tick_physics = function () {
     this.camera.adjust(this.player.xloc, this.player.yloc, xstep, ystep);
     // Update the background color based on player position
     this.update_bg_color();
+}
+// Check the collision of all actors in the Game
+// (Only check downward in blob list, so as not to duplicate checks)
+Game.prototype.collision_detection = function () {
+    let actors = this.blobs.slice(0);
+    actors.push(this.player);
+    for (let i = actors.length - 1; i >= 0; i--) {
+        let actor = actors[i];
+        for (let j = i - 1; j >= 0; j--) {
+            let other = actors[j];
+            if (actor.overlaps(other)) {
+                actor.collide_with(other);
+                break
+            }
+        }
+    }
 }
 // Stop all action in the game world until Game is unpaused
 Game.prototype.toggle_pause = function () {
