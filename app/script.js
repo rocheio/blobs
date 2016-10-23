@@ -83,12 +83,13 @@ Game.prototype.new_game = function () {
     // Composition
     this.timer = new Timer();
     this.controls = new Controls(this);
-    this.camera = new Camera();
     this.player = new Blob(0, 0, 10, '#DDDDDD');
+    this.camera = new Camera(this.player);
     this.add_interval(GRAPHICS_FPS, this.render_frame.bind(this), 'Graphics');
     this.add_interval(PHYSICS_FPS, this.tick_physics.bind(this), 'Physics');
     this.add_interval(20, this.collision_detection.bind(this), 'Collisions');
     this.add_interval(1, this.spawn_blob.bind(this), 'Spawner');
+    this.add_interval(10, this.update_bg_color.bind(this), 'BG Color');
 }
 Game.prototype.add_interval = function (fps, func, name) {
     this.intervals.push(new TrackedInterval(fps, func, name));
@@ -149,7 +150,6 @@ Game.prototype.tick_physics = function () {
     if (!this.player.alive) {
         this.game_over();
     }
-
     // Calculate score for and remove blobs that have died this round
     for (let i = this.blobs.length - 1; i >= 0; i--) {
         let blob = this.blobs[i];
@@ -166,9 +166,7 @@ Game.prototype.tick_physics = function () {
     let ystep = this.controls.intent_y;
     this.player.step(xstep, ystep);
     // Update the camera view if player is at boundaries
-    this.camera.adjust(this.player.xloc, this.player.yloc, xstep, ystep);
-    // Update the background color based on player position
-    this.update_bg_color();
+    this.camera.adjust(xstep, ystep);
 }
 // Check the collision of all actors in the Game
 // (Only check downward in blob list, so as not to duplicate checks)
@@ -243,23 +241,31 @@ Represents a Camera to track a subset view of the game world.
 The Camera will adjust to follow player movement and ensure
 the player is always at the center of the visible game area.
 */
-var Camera = function () {
+var Camera = function (target) {
+    this.target = target;  // Game Object the camera tracks (player)
     this.xoffset = -CANVAS.width / 2;  // Offset with Game grid X
     this.yoffset = -CANVAS.height / 2;  // Offset with Game grid Y
     this.xbound = CANVAS.width / 4;
     this.ybound = CANVAS.height / 4;
 }
+Camera.prototype.target_right = function () {
+    return (this.target.xloc > this.xoffset + CANVAS.width - this.xbound);
+}
+Camera.prototype.target_left = function () {
+    return (this.target.xloc < this.xoffset + this.xbound);
+}
+Camera.prototype.target_top = function () {
+    return (this.target.yloc > this.yoffset + CANVAS.height - this.ybound);
+}
+Camera.prototype.target_bottom = function () {
+    return (this.target.yloc < this.yoffset + this.ybound);
+}
 // Adjust the offset based on player location and movement speed
-Camera.prototype.adjust = function (xloc, yloc, xstep, ystep) {
-    let passing_right = (xloc > this.xoffset + CANVAS.width - this.xbound);
-    let passing_left = (xloc < this.xoffset + this.xbound);
-    let passing_up = (yloc > this.yoffset + CANVAS.height - this.ybound);
-    let passing_down = (yloc < this.yoffset + this.ybound);
-
-    if (passing_right | passing_left) {
+Camera.prototype.adjust = function (xstep, ystep) {
+    if (this.target_right() | this.target_left()) {
         this.xoffset += xstep;
     }
-    if (passing_up | passing_down) {
+    if (this.target_top() | this.target_bottom()) {
         this.yoffset += ystep;
     }
 }
