@@ -12,9 +12,7 @@ const KEYCODEMAP = {
 /*
 Constants used to tweak the game to make it more fun.
 */
-const MAX_BLOBS = 30;  // Maximum blobs in the game at any given timee
-const GRAPHICS_FPS = 30;  // Number of renders/second for animations
-const PHYSICS_FPS = 20;  // Number of actions/second for game objects
+const MAX_BLOBS = 30;  // Maximum blobs in the game at any given time
 const DEFAULT_BG_COLOR = "#BBCCFF";  // Starting BG color for the game
 const SPAWN_BUFFER = [500, 1000]; // Range from player where blobs spawn
 
@@ -85,13 +83,18 @@ Game.prototype.new_game = function () {
     this.controls = new Controls(this);
     this.player = new Blob(0, 0, 10, '#DDDDDD');
     this.camera = new Camera(this.player);
-    this.add_interval(GRAPHICS_FPS, this.render_frame.bind(this), 'Graphics');
-    this.add_interval(PHYSICS_FPS, this.tick_physics.bind(this), 'Physics');
+    this.add_interval(30, this.render_frame.bind(this), 'Graphics');
+    this.add_interval(30, this.check_game_over.bind(this), 'Physics');
     this.add_interval(20, this.collision_detection.bind(this), 'Collisions');
+    this.add_interval(5, this.set_blob_targets.bind(this), 'Targetting');
+    this.add_interval(20, this.move_player.bind(this), 'Move Player');
+    this.add_interval(20, this.move_npcs.bind(this), 'Move NPCs');
     this.add_interval(20, this.camera.adjust.bind(this.camera), 'Camera');
     this.add_interval(1, this.spawn_blob.bind(this), 'Spawner');
+    this.add_interval(30, this.remove_blobs.bind(this), 'Remove Blobs');
     this.add_interval(10, this.update_bg_color.bind(this), 'BG Color');
 }
+// Add a tracked interval to the game
 Game.prototype.add_interval = function (fps, func, name) {
     this.intervals.push(new TrackedInterval(fps, func, name));
 }
@@ -144,28 +147,39 @@ Game.prototype.spawn_blob = function () {
         this.blobs.push(new Blob(xloc, yloc, radius));
     }
 }
-// Taken action for every item on the canvas
-// Loop backward so removal from the list doesn't break things
-Game.prototype.tick_physics = function () {
-    // End the game if the player has died
+// End the game if the player has died
+Game.prototype.check_game_over = function () {
     if (!this.player.alive) {
         this.game_over();
     }
-    // Calculate score for and remove blobs that have died this round
+}
+// Calculate score for and remove blobs that have died this round
+Game.prototype.remove_blobs = function () {
     for (let i = this.blobs.length - 1; i >= 0; i--) {
         let blob = this.blobs[i];
         if (!blob.alive) {
             this.score += blob.points;
             this.blobs.splice(i, 1);
         }
-        // Set the blob target to the player, and move the blob
-        blob.set_target(this.player.xloc, this.player.yloc);
-        blob.move();
     }
-    // Move the player
+}
+// Set all blob targets and move them toward it.
+Game.prototype.set_blob_targets = function () {
+    this.blobs.forEach(function(blob){
+        blob.set_target(this.player.xloc, this.player.yloc);
+    }.bind(this));
+}
+// Move the player toward the controllers intention
+Game.prototype.move_player = function () {
     let xstep = this.controls.intent_x;
     let ystep = this.controls.intent_y;
     this.player.step(xstep, ystep);
+}
+// Move all the NPC blobs
+Game.prototype.move_npcs = function () {
+    this.blobs.forEach(function(blob){
+        blob.move();
+    }.bind(this));
 }
 // Check the collision of all actors in the Game
 // (Only check downward in blob list, so as not to duplicate checks)
@@ -193,7 +207,7 @@ Game.prototype.toggle_pause = function () {
 }
 // End the game and display final stats
 Game.prototype.game_over = function () {
-    this.toggle_pause();
+    this.pause();
     let display_x = CANVAS.width / 2 - 60;
     let display_y = CANVAS.height / 8;
     CONTEXT.font = '30px Mono bold';
@@ -210,16 +224,16 @@ Game.prototype.restart = function () {
 }
 // Start the game
 Game.prototype.start = function () {
-    this.intervals.forEach(function (int) {
-        int.start();
+    this.intervals.forEach(function(interval){
+        interval.start();
     });
     this.timer.start();
     this.paused = false;
 }
 // Pause the game
 Game.prototype.pause = function () {
-    this.intervals.forEach(function (int) {
-        int.pause();
+    this.intervals.forEach(function(interval){
+        interval.pause();
     });
     this.timer.pause();
     this.paused = true;
@@ -246,27 +260,27 @@ var Camera = function (target) {
     this.xbound = CANVAS.width / 4;
     this.ybound = CANVAS.height / 4;
 }
-Camera.prototype.target_right = function () {
+Camera.prototype.is_target_right = function () {
     return (this.target.xloc > this.xoffset + CANVAS.width - this.xbound);
 }
-Camera.prototype.target_left = function () {
+Camera.prototype.is_target_left = function () {
     return (this.target.xloc < this.xoffset + this.xbound);
 }
-Camera.prototype.target_top = function () {
+Camera.prototype.is_target_top = function () {
     return (this.target.yloc > this.yoffset + CANVAS.height - this.ybound);
 }
-Camera.prototype.target_bottom = function () {
+Camera.prototype.is_target_bottom = function () {
     return (this.target.yloc < this.yoffset + this.ybound);
 }
 Camera.prototype.adjust = function () {
-    if (this.target_right()) {
+    if (this.is_target_right()) {
         this.xoffset += this.speed;
-    } else if (this.target_left()) {
+    } else if (this.is_target_left()) {
         this.xoffset -= this.speed;
     }
-    if (this.target_top()) {
+    if (this.is_target_top()) {
         this.yoffset += this.speed;
-    } else if (this.target_bottom()) {
+    } else if (this.is_target_bottom()) {
         this.yoffset -= this.speed;
     }
 }
