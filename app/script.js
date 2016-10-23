@@ -88,6 +88,7 @@ Game.prototype.new_game = function () {
     this.add_interval(GRAPHICS_FPS, this.render_frame.bind(this), 'Graphics');
     this.add_interval(PHYSICS_FPS, this.tick_physics.bind(this), 'Physics');
     this.add_interval(20, this.collision_detection.bind(this), 'Collisions');
+    this.add_interval(20, this.camera.adjust.bind(this.camera), 'Camera');
     this.add_interval(1, this.spawn_blob.bind(this), 'Spawner');
     this.add_interval(10, this.update_bg_color.bind(this), 'BG Color');
 }
@@ -165,8 +166,6 @@ Game.prototype.tick_physics = function () {
     let xstep = this.controls.intent_x;
     let ystep = this.controls.intent_y;
     this.player.step(xstep, ystep);
-    // Update the camera view if player is at boundaries
-    this.camera.adjust(xstep, ystep);
 }
 // Check the collision of all actors in the Game
 // (Only check downward in blob list, so as not to duplicate checks)
@@ -237,12 +236,11 @@ Game.prototype.update_bg_color = function () {
 
 
 /*
-Represents a Camera to track a subset view of the game world.
-The Camera will adjust to follow player movement and ensure
-the player is always at the center of the visible game area.
+Represents a Camera to track an Object within the game world.
 */
 var Camera = function (target) {
     this.target = target;  // Game Object the camera tracks (player)
+    this.speed = 5;
     this.xoffset = -CANVAS.width / 2;  // Offset with Game grid X
     this.yoffset = -CANVAS.height / 2;  // Offset with Game grid Y
     this.xbound = CANVAS.width / 4;
@@ -260,13 +258,16 @@ Camera.prototype.target_top = function () {
 Camera.prototype.target_bottom = function () {
     return (this.target.yloc < this.yoffset + this.ybound);
 }
-// Adjust the offset based on player location and movement speed
-Camera.prototype.adjust = function (xstep, ystep) {
-    if (this.target_right() | this.target_left()) {
-        this.xoffset += xstep;
+Camera.prototype.adjust = function () {
+    if (this.target_right()) {
+        this.xoffset += this.speed;
+    } else if (this.target_left()) {
+        this.xoffset -= this.speed;
     }
-    if (this.target_top() | this.target_bottom()) {
-        this.yoffset += ystep;
+    if (this.target_top()) {
+        this.yoffset += this.speed;
+    } else if (this.target_bottom()) {
+        this.yoffset -= this.speed;
     }
 }
 
