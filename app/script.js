@@ -84,14 +84,16 @@ Game.prototype.new_game = function () {
     this.player = new Blob(0, 0, 10, '#DDDDDD');
     this.camera = new Camera(this.player);
     this.add_interval(30, this.render_frame.bind(this), 'Graphics');
-    this.add_interval(30, this.check_game_over.bind(this), 'Physics');
-    this.add_interval(20, this.collision_detection.bind(this), 'Collisions');
+    this.add_interval(20, function(){
+        this.check_game_over();
+        this.collision_detection();
+        this.move_player();
+        this.move_npcs();
+        this.remove_blobs();
+        this.camera.adjust();
+    }.bind(this), 'Primary');
     this.add_interval(5, this.set_blob_targets.bind(this), 'Targetting');
-    this.add_interval(20, this.move_player.bind(this), 'Move Player');
-    this.add_interval(20, this.move_npcs.bind(this), 'Move NPCs');
-    this.add_interval(20, this.camera.adjust.bind(this.camera), 'Camera');
     this.add_interval(1, this.spawn_blob.bind(this), 'Spawner');
-    this.add_interval(30, this.remove_blobs.bind(this), 'Remove Blobs');
     this.add_interval(10, this.update_bg_color.bind(this), 'BG Color');
 }
 // Add a tracked interval to the game
