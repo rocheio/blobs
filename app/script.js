@@ -71,8 +71,9 @@ var Game = function () {
 // Start the game on object init and on restarts
 Game.prototype.new_game = function () {
     // Attributes
-    this.score = 0;
+    this.intervals = [];
     this.blobs = [];
+    this.score = 0;
     this.paused = false;
 
     // Background color
@@ -83,14 +84,14 @@ Game.prototype.new_game = function () {
     this.timer = new Timer();
     this.controls = new Controls(this);
     this.camera = new Camera();
-    this.graphics = new TrackedInterval(
-        GRAPHICS_FPS, this.render_frame.bind(this)
-    );
-    this.physics = new TrackedInterval(
-        PHYSICS_FPS, this.tick_physics.bind(this)
-    );
-    this.spawner = new TrackedInterval(1, this.spawn_blob.bind(this));
     this.player = new Blob(0, 0, 10, '#DDDDDD');
+    this.add_interval(GRAPHICS_FPS, this.render_frame.bind(this), 'Graphics');
+    this.add_interval(PHYSICS_FPS, this.tick_physics.bind(this), 'Physics');
+    this.add_interval(20, this.collision_detection.bind(this), 'Collisions');
+    this.add_interval(1, this.spawn_blob.bind(this), 'Spawner');
+}
+Game.prototype.add_interval = function (fps, func, name) {
+    this.intervals.push(new TrackedInterval(fps, func, name));
 }
 // Render an entire frame of the game at its current state
 Game.prototype.render_frame = function () {
@@ -108,18 +109,20 @@ Game.prototype.render_frame = function () {
 };
 // Write debugging info to the canvas
 Game.prototype._draw_debug_info = function () {
-    CONTEXT.font = '12px Mono';
-    CONTEXT.fillStyle = 'black';
+    // Format info from Game elements
     let info = [
-        ["Canvas Width", CANVAS.width],
-        ["Canvas Height", CANVAS.height],
-        ["Frames Per Second", this.graphics.rate],
-        ["Physics Per Second", this.physics.rate],
+        ["Canvas Size", CANVAS.width + ' x ' + CANVAS.height],
         ["Number Blobs", this.blobs.length],
         ["Time", this.timer.time()],
         ["Score", this.score],
         ["Player at", (this.player.xloc + ", " + this.player.yloc)]
-    ]
+    ];
+    this.intervals.forEach(function(interval){
+        info.push([interval.name, interval.rate])
+    });
+    // Draw the information on the canvas
+    CONTEXT.font = '10px Mono';
+    CONTEXT.fillStyle = 'black';
     let ypos = 0;
     info.forEach(function(items){
         let label_value = items[0] + ': ' + items[1];
@@ -146,8 +149,6 @@ Game.prototype.tick_physics = function () {
     if (!this.player.alive) {
         this.game_over();
     }
-
-    this.collision_detection();
 
     // Calculate score for and remove blobs that have died this round
     for (let i = this.blobs.length - 1; i >= 0; i--) {
@@ -212,17 +213,17 @@ Game.prototype.restart = function () {
 }
 // Start the game
 Game.prototype.start = function () {
-    this.graphics.start();
-    this.physics.start();
-    this.spawner.start();
+    this.intervals.forEach(function (int) {
+        int.start();
+    });
     this.timer.start();
     this.paused = false;
 }
 // Pause the game
 Game.prototype.pause = function () {
-    this.graphics.pause();
-    this.physics.pause();
-    this.spawner.pause();
+    this.intervals.forEach(function (int) {
+        int.pause();
+    });
     this.timer.pause();
     this.paused = true;
 }
@@ -267,9 +268,10 @@ Camera.prototype.adjust = function (xloc, yloc, xstep, ystep) {
 /*
 Interval that tracks actual actions taken (for FPS monitoring)
 */
-var TrackedInterval = function (aps, action) {
+var TrackedInterval = function (aps, action, name) {
     this.aps = aps;  // Target Actions Per Second
     this.action = action;  // Function to execute each interval
+    this.name = name;
     this.rate = 0;  // Calculated at render time
     this._actions = 0;  // Running number of actions taken
     this.start();
