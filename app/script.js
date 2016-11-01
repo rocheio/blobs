@@ -167,8 +167,30 @@ Game.prototype.remove_blobs = function () {
 }
 // Set all blob targets and move them toward it.
 Game.prototype.set_blob_targets = function () {
+    let actors = this.blobs.slice(0);
+    actors.push(this.player);
+
     this.blobs.forEach(function(blob){
-        blob.set_target(this.player.xloc, this.player.yloc);
+        // Find actors that are close to the blob
+        let close_actors = [];
+        actors.forEach(function(actor){
+            if (blob.distance_from(actor.xloc, actor.yloc) < 500) {
+                close_actors.push(actor);
+            }
+        });
+        // Sort actors that the blob can see
+        let attractors = [];
+        let repellants = [];
+        close_actors.forEach(function(actor){
+            if (blob.radius > actor.radius) {
+                attractors.push(actor);
+            } else {
+                repellants.push(actor);
+            }
+        });
+        // Set the target based on the first attractor (simple for now)
+        let target = attractors.length > 0 ? attractors[0] : blob;
+        blob.set_target(target.xloc, target.yloc);
     }.bind(this));
 }
 // Move the player toward the controllers intention
@@ -497,6 +519,13 @@ Blob.prototype.collide_with = function (other) {
     }
 }
 
+
+/*
+Basic food objects that can be collected by players
+*/
+var Food = function (xloc, yloc, radius=1, color=null) {
+
+}
 
 // Start the game on script load
 window.onload = function () {
