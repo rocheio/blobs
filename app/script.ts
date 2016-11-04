@@ -168,8 +168,8 @@ class Game {
     }
     // Move the player toward the controllers intention
     move_player () {
-        let xstep = this.controls.intent_x;
-        let ystep = this.controls.intent_y;
+        let xstep = this.controls.intent['x'];
+        let ystep = this.controls.intent['y'];
         this.player.step(xstep, ystep);
     }
     // Move all the NPC blobs
@@ -376,8 +376,7 @@ Manages direction actions via "intent" counts of direction history.
 */
 class Controls {
     intent_max: number = 8;
-    intent_y: number = 0;
-    intent_x: number = 0;
+    intent: {[id: string]: number} = {'x': 0, 'y': 0};
     game: Game;
     constructor (game: Game) {
         this.game = game;
@@ -403,7 +402,6 @@ class Controls {
     add_touch_listeners () {
         var hammertime = new Hammer(document.getElementById('container'));
         hammertime.on('pan', function(event: HammerEvent) {
-            console.log(event);
             if (event.direction == 2) {
                 this.direction('left');
             } else if (event.direction == 4) {
@@ -417,12 +415,11 @@ class Controls {
     }
     // Translate a direction command (e.g. 'left') into movement intent
     direction (cmd: string) {
-        let intenttype = (cmd === 'left' || cmd === 'right' ?
-                          this.intent_x : this.intent_y);
+        let direction = (cmd === 'left' || cmd === 'right' ? 'x' : 'y');
         let increment = (cmd === 'left' || cmd === 'up' ? -1 : 1);
-        let new_value = intenttype + increment;
+        let new_value = this.intent[direction] + increment;
         if (Math.abs(new_value) < this.intent_max) {
-            intenttype = new_value;
+            this.intent[direction] = new_value;
         }
     }
 }

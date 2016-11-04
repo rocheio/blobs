@@ -124,8 +124,8 @@ var Game = (function () {
         }.bind(this));
     };
     Game.prototype.move_player = function () {
-        var xstep = this.controls.intent_x;
-        var ystep = this.controls.intent_y;
+        var xstep = this.controls.intent['x'];
+        var ystep = this.controls.intent['y'];
         this.player.step(xstep, ystep);
     };
     Game.prototype.move_npcs = function () {
@@ -303,8 +303,7 @@ var Timer = (function () {
 var Controls = (function () {
     function Controls(game) {
         this.intent_max = 8;
-        this.intent_y = 0;
-        this.intent_x = 0;
+        this.intent = { 'x': 0, 'y': 0 };
         this.game = game;
         this.add_keyboard_listeners();
         this.add_touch_listeners();
@@ -329,7 +328,6 @@ var Controls = (function () {
     Controls.prototype.add_touch_listeners = function () {
         var hammertime = new Hammer(document.getElementById('container'));
         hammertime.on('pan', function (event) {
-            console.log(event);
             if (event.direction == 2) {
                 this.direction('left');
             }
@@ -345,12 +343,11 @@ var Controls = (function () {
         }.bind(this));
     };
     Controls.prototype.direction = function (cmd) {
-        var intenttype = (cmd === 'left' || cmd === 'right' ?
-            this.intent_x : this.intent_y);
+        var direction = (cmd === 'left' || cmd === 'right' ? 'x' : 'y');
         var increment = (cmd === 'left' || cmd === 'up' ? -1 : 1);
-        var new_value = intenttype + increment;
+        var new_value = this.intent[direction] + increment;
         if (Math.abs(new_value) < this.intent_max) {
-            intenttype = new_value;
+            this.intent[direction] = new_value;
         }
     };
     return Controls;
