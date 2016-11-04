@@ -1,9 +1,20 @@
+'use strict';
+
+// Hammer Module -- http://hammerjs.github.io/
+declare class Hammer {
+    constructor (param1: HTMLElement);
+    public on(type: string, callback: Function): void;
+}
+declare class HammerEvent {
+    direction: number;
+}
+
 /*
 GameObjects: Game where everything is a blob.
 */
 const CANVAS = <HTMLCanvasElement>document.getElementById('canvas');
-const CONTEXT = CANVAS.getContext('2d');
-const KEYCODEMAP = {
+const CONTEXT = <CanvasRenderingContext2D>CANVAS.getContext('2d');
+const KEYCODEMAP: {[id: number]: string} = {
     37: 'left', 38: 'up', 39: 'right', 40: 'down',  // arrow keys
     65: 'left', 87: 'up', 68: 'right', 83: 'down',  // w a s d
     27: 'escape', 32: 'space'
@@ -59,7 +70,7 @@ class Game {
         this.add_interval(10, this.update_bg_color.bind(this), 'BG Color');
     }
     // Add a tracked interval to the game
-    add_interval (fps, func, name) {
+    add_interval (fps: number, func: number, name: string) {
         this.intervals.push(new TrackedInterval(fps, func, name));
     }
     // Render an entire frame of the game at its current state
@@ -70,7 +81,7 @@ class Game {
         CONTEXT.fillStyle = this.bg_color;
         CONTEXT.fillRect(0, 0, CANVAS.width, CANVAS.height);
         // Draw Game stuff
-        this.blobs.forEach(function(blob){
+        this.blobs.forEach(function(blob: GameObject){
             blob.draw(this.camera.xoffset, this.camera.yoffset);
         }.bind(this));
         this.player.draw(this.camera.xoffset, this.camera.yoffset);
@@ -132,18 +143,18 @@ class Game {
         let actors = this.blobs.slice(0);
         actors.push(this.player);
 
-        this.blobs.forEach(function(blob){
+        this.blobs.forEach(function(blob: GameObject){
             // Find actors that are close to the blob
-            let close_actors = [];
+            let close_actors: GameObject[] = [];
             actors.forEach(function(actor){
                 if (blob.distance_from(actor.xloc, actor.yloc) < 500) {
                     close_actors.push(actor);
                 }
             });
             // Sort actors that the blob can see
-            let attractors = [];
-            let repellants = [];
-            close_actors.forEach(function(actor){
+            let attractors: GameObject[] = [];
+            let repellants: GameObject[] = [];
+            close_actors.forEach(function(actor: GameObject){
                 if (blob.radius > actor.radius) {
                     attractors.push(actor);
                 } else {
@@ -163,7 +174,7 @@ class Game {
     }
     // Move all the NPC blobs
     move_npcs () {
-        this.blobs.forEach(function(blob){
+        this.blobs.forEach(function(blob: GameObject){
             blob.move();
         }.bind(this));
     }
@@ -245,7 +256,7 @@ class Camera {
     xbound: number = CANVAS.width / 4;
     ybound: number = CANVAS.height / 4;
     target: GameObject;
-    constructor (target) {
+    constructor (target: GameObject) {
         this.target = target;  // Object camera tracks (player)
     }
     is_target_right () {
@@ -282,10 +293,10 @@ class TrackedInterval {
     _actions: number = 0;  // Running number of actions taken
     aps: number;  // Target Actions Per Second
     action: number;  // Function to execute each interval
-    name: number;
+    name: string;
     tracker: number;
     interval: number;
-    constructor (aps, action, name) {
+    constructor (aps: number, action: number, name: string) {
         this.aps = aps;
         this.action = action;
         this.name = name;
@@ -339,8 +350,8 @@ class Timer {
     }
     // Return the time as string from 0:00 to 99:99:99
     time () {
-       var hours, minutes, seconds = 0;
-       var formatted = '';
+       let hours = 0, minutes = 0, seconds = 0;
+       let formatted = '';
        hours = (this.current_seconds / (60 * 60)) >> 0;
        if (hours > 0) {
            formatted += hours + ':';
@@ -368,14 +379,14 @@ class Controls {
     intent_y: number = 0;
     intent_x: number = 0;
     game: Game;
-    constructor (game) {
+    constructor (game: Game) {
         this.game = game;
         this.add_keyboard_listeners();
         this.add_touch_listeners();
     }
     // Add listeners for keyboard commands
     add_keyboard_listeners () {
-        document.addEventListener('keydown', function(event) {
+        document.addEventListener('keydown', function(event: KeyboardEvent) {
             let code = KEYCODEMAP[event.keyCode];
             if (code == undefined) {
                 console.log('unknown keydown: ' + event.keyCode);
@@ -391,7 +402,8 @@ class Controls {
     // Add listeners for touch controls
     add_touch_listeners () {
         var hammertime = new Hammer(document.getElementById('container'));
-        hammertime.on('pan', function(event) {
+        hammertime.on('pan', function(event: HammerEvent) {
+            console.log(event);
             if (event.direction == 2) {
                 this.direction('left');
             } else if (event.direction == 4) {
@@ -404,13 +416,13 @@ class Controls {
         }.bind(this));
     }
     // Translate a direction command (e.g. 'left') into movement intent
-    direction (cmd) {
+    direction (cmd: string) {
         let intenttype = (cmd === 'left' || cmd === 'right' ?
-                          'intent_x' : 'intent_y');
+                          this.intent_x : this.intent_y);
         let increment = (cmd === 'left' || cmd === 'up' ? -1 : 1);
-        let new_value = this[intenttype] + increment;
+        let new_value = intenttype + increment;
         if (Math.abs(new_value) < this.intent_max) {
-            this[intenttype] = new_value;
+            intenttype = new_value;
         }
     }
 }
@@ -429,7 +441,7 @@ class GameObject {
     speed: number;
     color: string;
     border_color: string;
-    constructor (xloc, yloc, radius=10, color=null) {
+    constructor (xloc: number, yloc: number, radius: number=10, color: string=null) {
         this.xloc = xloc;
         this.yloc = yloc;
         this.radius = radius;
@@ -443,7 +455,7 @@ class GameObject {
                 ') radius ' + this.radius + '>');
     }
     // Draw the blob on the canvas
-    draw (xoffset=0, yoffset=0) {
+    draw (xoffset: number=0, yoffset: number=0) {
         CONTEXT.beginPath();
         CONTEXT.arc(this.xloc - xoffset, this.yloc - yoffset,
                     this.radius, 0, 2 * Math.PI, false);
@@ -454,7 +466,7 @@ class GameObject {
         CONTEXT.stroke();
     }
     // Set the target for a blob
-    set_target (xloc, yloc) {
+    set_target (xloc: number, yloc: number) {
         this.xtarget = xloc;
         this.ytarget = yloc;
     }
@@ -470,12 +482,12 @@ class GameObject {
         this.step(xstep, ystep);
     }
     // Move the blob a single step using integer amounts
-    step (xstep=0, ystep=0) {
+    step (xstep: number=0, ystep: number=0) {
         this.xloc += xstep;
         this.yloc += ystep;
     }
     // Calculate if this blob overlaps with another blob
-    overlaps (target) {
+    overlaps (target: GameObject) {
         let distance = this.distance_from(target.xloc, target.yloc);
         if (target.radius + this.radius > distance) {
             return true;
@@ -484,11 +496,11 @@ class GameObject {
         }
     }
     // Return the absolute distance this GameObject is from coordinates
-    distance_from (xloc=0, yloc=0) {
-        return Math.hypot(yloc - this.yloc, xloc - this.xloc);
+    distance_from (xloc: number=0, yloc: number=0) {
+        return hypot(yloc - this.yloc, xloc - this.xloc);
     }
     // Collide with another blob, acting based on which blob is bigger
-    collide_with (other) {
+    collide_with (other: GameObject) {
         if (this.radius > other.radius) {
             other.alive = false;
             this.radius += 1;
@@ -503,7 +515,7 @@ class GameObject {
 Basic food objects that can be collected by players
 */
 class Food {
-    constructor (xloc, yloc, radius=1, color=null) {
+    constructor (xloc: number, yloc: number, radius: number=1, color: string=null) {
 
     }
 }
@@ -516,7 +528,7 @@ function resize_canvas () {
 }
 
 // Return random integer between two values
-function rand_between (min, max) {
+function rand_between (min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -532,7 +544,7 @@ function rand_color () {
 
 // Return darker hex color from a hex color
 // (Positive percent for lighter, negative for darker)
-function shade_color (color, percent) {
+function shade_color (color: string, percent: number) {
     let f = parseInt(color.slice(1), 16),
         t = percent < 0 ? 0 : 255,
         p = percent < 0 ? percent * -1 : percent,
@@ -548,6 +560,11 @@ function shade_color (color, percent) {
         ).toString(16).slice(1)
     );
     return darker;
+}
+
+// Return hypotenuse from two sides
+function hypot(x: number, y: number) {
+    return Math.sqrt(x * x + y * y);
 }
 
 // Start the game on script load
